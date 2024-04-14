@@ -1,19 +1,20 @@
 package front;
 
+import Conn.EmailManager;
 import javax.swing.*;
 import java.awt.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import javax.mail.MessagingException;
 import models.Mail;
 
 public class MailContent extends JDialog {
 
-    
-    
-    public MailContent(Mail m) {
-        // Configurar el diálogo
-        setTitle("Mail content");
-        setSize(500, 500);
-        setLocationRelativeTo(null);
-        setModal(true);
+    EmailManager emailManager;
+
+    public MailContent(Mail m, EmailManager em, Frame owner) {
+        super(owner);
+        this.emailManager = em;
 
         // Crear la barra de menú y el menú Acciones
         JMenuBar menuBar = new JMenuBar();
@@ -26,6 +27,27 @@ public class MailContent extends JDialog {
         JMenuItem itemBorrar = new JMenuItem("Borrar");
         JMenuItem itemMover = new JMenuItem("Mover de carpeta");
 
+        // Acción de borrar el correo
+        itemBorrar.addActionListener(e -> {
+            boolean delete = emailManager.deleteEmail(m.getFolder().getFullName(), m.getGh().getIdMessage());
+            if (delete) {
+                JOptionPane.showMessageDialog(null, "Correo eliminado correctamente", "Eliminado", JOptionPane.INFORMATION_MESSAGE);
+                dispose();
+            } else {
+                JOptionPane.showMessageDialog(null, "No se pudo eliminar el correo", "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+        
+         itemReenviar.addActionListener(e -> {
+             new Reenvio((Frame) getOwner(), emailManager, m.getMessage());
+        });
+        
+         
+          itemMover.addActionListener(e -> {
+              new MoveEmail((Frame) getOwner(), emailManager, m);
+        });
+        
+
         menuAcciones.add(itemResponder);
         menuAcciones.add(itemReenviar);
         menuAcciones.add(itemBorrar);
@@ -34,22 +56,24 @@ public class MailContent extends JDialog {
         // Añadir la barra de menú al diálogo
         setJMenuBar(menuBar);
 
-        // Crear un panel con texto
+        // Crear un panel para mostrar el contenido del correo
         JPanel panel = new JPanel();
         panel.setLayout(new BorderLayout());
-        JTextArea textArea = new JTextArea("Este es un panel con texto.");
-        panel.add(new JScrollPane(textArea), BorderLayout.CENTER); // Agrega scroll al área de texto
+        JTextPane textPane = new JTextPane();
+        textPane.setContentType("text/html");  // Configura el tipo de contenido a HTML si se espera contenido en ese formato
+        textPane.setText(m.getTextMessage());  // Añade el mensaje de correo al JTextPane
+        textPane.setEditable(false);  // Hace que JTextPane no sea editable
+        panel.add(new JScrollPane(textPane), BorderLayout.CENTER);  // Añade scroll al JTextPane
 
         // Añadir el panel al diálogo
         add(panel);
 
-        // Configuración de cierre del diálogo
+        // Configurar el diálogo
+        setTitle("Contenido del correo");
+        setSize(500, 500);
+        setLocationRelativeTo(null);
+        setModal(true);
+        setVisible(true);
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
-    }
-
-    public static void main(String[] args) {
-        // Mostrar el diálogo
-        MailContent dialogo = new MailContent(null);
-        dialogo.setVisible(true);
     }
 }

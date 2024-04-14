@@ -1,7 +1,7 @@
 package auth;
 
 import Conn.EmailManager;
-import front.GmailClient;
+import front.App;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.GridBagConstraints;
@@ -86,7 +86,7 @@ public class Login extends JFrame {
                 String password = new String(pfPassword.getPassword());
                 em = new EmailManager(user, password);
                 if (em.connect()) {
-                    new GmailClient(user, password);
+                    new App(user, password);
                     dispose();
                 } else {
                     JOptionPane.showMessageDialog(null, "Credenciales incorrectas", "Error", JOptionPane.ERROR_MESSAGE);
@@ -109,7 +109,7 @@ public class Login extends JFrame {
         setMinimumSize(new Dimension(WFRAME, HFRAME));
         setResizable(false);
         setDefaultCloseOperation(EXIT_ON_CLOSE);
-        getContentPane().setBackground(Color.ORANGE);
+        getContentPane().setBackground(new Color(74, 157, 240));
         setLocationRelativeTo(null);
         setVisible(true);
     }

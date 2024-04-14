@@ -2,6 +2,8 @@ package models;
 
 import java.util.List;
 import javax.mail.BodyPart;
+import javax.mail.Folder;
+import javax.mail.Message;
 
 /**
  *
@@ -12,10 +14,29 @@ public class Mail {
      GmailHeader gh;
      String textMessage, textHTML;
      List<BodyPart> bodyParts;
+     Folder folder;
+     Message message;
 
     public Mail() {
     }
 
+    public Message getMessage() {
+        return message;
+    }
+
+    public void setMessage(Message message) {
+        this.message = message;
+    }
+
+    public Folder getFolder() {
+        return folder;
+    }
+
+    public void setFolder(Folder folder) {
+        this.folder = folder;
+    }
+
+   
     public GmailHeader getGh() {
         return gh;
     }
