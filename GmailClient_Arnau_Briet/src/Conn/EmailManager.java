@@ -3,7 +3,11 @@ package Conn;
 import javax.mail.*;
 import javax.mail.internet.*;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Properties;
+import models.GmailHeader;
 
 public class EmailManager {
 
@@ -53,13 +57,30 @@ public class EmailManager {
     }
 
     // Obtener correos de un directorio específico
-    public Message[] fetchMessages(String folderName) throws MessagingException {
-        Folder folder = store.getFolder(folderName);
+    public List<GmailHeader> fetchMessages(String folderName) throws MessagingException {
+        if (!store.isConnected()) {
+            connect();
+        }
+
+        Folder folder = store.getFolder("[Gmail]/" + folderName);
+
         folder.open(Folder.READ_ONLY);
 
         // Obtener los últimos 10 correos
         int messageCount = folder.getMessageCount();
-        return folder.getMessages(Math.max(1, messageCount - 9), messageCount);
+        Message[] messages = folder.getMessages(Math.max(1, messageCount - 9), messageCount);
+
+        List<GmailHeader> headers = new ArrayList<>();
+        for (Message message : messages) {
+            String sentDate = message.getSentDate().toString();
+            String subject = message.getSubject();
+            String from = message.getFrom()[0].toString();
+            int idMessage = message.getMessageNumber();
+
+            headers.add(new GmailHeader(sentDate, subject, from, idMessage));
+        }
+
+        return headers;
     }
 
     // Enviar un correo electrónico
@@ -88,5 +109,32 @@ public class EmailManager {
         }
     }
 
-    // Otros métodos como descargar adjuntos y eliminar correos pueden ser implementados de manera similar
+    public void deleteEmail(String folderName, int messageId) throws MessagingException {
+        if (!store.isConnected()) {
+            if (!connect()) {
+                throw new MessagingException("Unable to reconnect to mail store");
+            }
+        }
+
+        Folder folder = store.getFolder(folderName);
+        if (folder == null || !folder.exists()) {
+            throw new MessagingException("Folder not found: " + folderName);
+        }
+
+        try {
+            folder.open(Folder.READ_WRITE);  // Abrir la carpeta en modo lectura/escritura para permitir modificaciones
+            Message messageToDelete = folder.getMessage(messageId);
+            if (messageToDelete == null) {
+                throw new MessagingException("Message not found: " + messageId);
+            }
+
+            messageToDelete.setFlag(Flags.Flag.DELETED, true);  // Marcar el mensaje para eliminación
+            folder.expunge();  // Expurgar los mensajes marcados para eliminar de la carpeta
+        } finally {
+            if (folder.isOpen()) {
+                folder.close(true);  // Cerrar la carpeta y aplicar los cambios
+            }
+        }
+    }
+
 }

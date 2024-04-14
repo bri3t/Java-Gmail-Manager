@@ -87,6 +87,7 @@ public class Login extends JFrame {
                 em = new EmailManager(user, password);
                 if (em.connect()) {
                     new GmailClient(user, password);
+                    dispose();
                 } else {
                     JOptionPane.showMessageDialog(null, "Credenciales incorrectas", "Error", JOptionPane.ERROR_MESSAGE);
                     _clear();
