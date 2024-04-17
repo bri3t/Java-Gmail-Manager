@@ -4,19 +4,24 @@ import Conn.EmailManager;
 import javax.swing.*;
 import java.awt.*;
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 
 public class SendMail extends JDialog {
 
     private EmailManager emailManager;
-    private File attachedFile;  // Variable para almacenar el archivo adjunto
+    private List<File> attachedFiles;  // Lista para almacenar los archivos adjuntos
+    private JLabel filesCountLabel;  // Etiqueta para mostrar el número de archivos adjuntos
 
     public SendMail(EmailManager em, Frame owner) {
         super(owner, true);
         this.emailManager = em;
+        attachedFiles = new ArrayList<>();  // Inicializar la lista de archivos adjuntos
+
         setLayout(new BorderLayout(10, 10)); // Margen entre los bordes del frame y los paneles
 
         // Panel para los campos de texto con margen
-        JPanel panel = new JPanel(new GridLayout(6, 2, 10, 10));
+        JPanel panel = new JPanel(new GridLayout(7, 2, 10, 10));  // Ajustado para incluir la nueva fila
         panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
         // Crear y añadir campos de texto y etiquetas
@@ -43,16 +48,22 @@ public class SendMail extends JDialog {
         JScrollPane scrollPane = new JScrollPane(messageTextArea);
         panel.add(scrollPane);
 
-        // Botón para adjuntar archivos
+        // Etiqueta y botón para adjuntar archivos
+        filesCountLabel = new JLabel("Número de ficheros adjuntados: 0");  // Etiqueta inicial
+        panel.add(filesCountLabel);
+        
         JButton attachButton = new JButton("Adjuntar Archivos");
         attachButton.addActionListener(e -> {
             JFileChooser fileChooser = new JFileChooser();
+            fileChooser.setMultiSelectionEnabled(true);  // Permitir seleccionar múltiples archivos
             if (fileChooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
-                attachedFile = fileChooser.getSelectedFile();
-                JOptionPane.showMessageDialog(this, "Archivo seleccionado: " + attachedFile.getName());
+                File[] selectedFiles = fileChooser.getSelectedFiles();
+                for (File file : selectedFiles) {
+                    attachedFiles.add(file);
+                }
+                filesCountLabel.setText("Número de ficheros adjuntados: " + attachedFiles.size());  // Actualizar la etiqueta
             }
         });
-        panel.add(new JLabel()); // Espacio vacío
         panel.add(attachButton);
 
         // Añadir el panel al frame
@@ -76,7 +87,7 @@ public class SendMail extends JDialog {
             String[] to = toText.split("\\s+");
             String[] cc = ccText.isEmpty() ? new String[0] : ccText.split("\\s+");
             String[] bcc = bccText.isEmpty() ? new String[0] : bccText.split("\\s+");
-            String[] attachments = attachedFile != null ? new String[] {attachedFile.getPath()} : null;
+            String[] attachments = attachedFiles.stream().map(File::getPath).toArray(String[]::new);
 
             if (emailManager.sendEmail(to, cc, bcc, subject, content, isHtmlContent, attachments)) {
                 JOptionPane.showMessageDialog(this, "Correo enviado correctamente.", "Enviado", JOptionPane.INFORMATION_MESSAGE);

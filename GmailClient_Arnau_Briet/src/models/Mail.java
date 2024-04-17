@@ -16,6 +16,15 @@ public class Mail {
      List<BodyPart> bodyParts;
      Folder folder;
      Message message;
+     String fromMail;
+
+    public String getFromMail() {
+        return fromMail;
+    }
+
+    public void setFromMail(String fromMail) {
+        this.fromMail = fromMail;
+    }
 
     public Mail() {
     }

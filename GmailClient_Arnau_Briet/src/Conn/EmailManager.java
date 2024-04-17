@@ -1,11 +1,12 @@
 package Conn;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import javax.mail.*;
 import javax.mail.internet.*;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
 import models.GmailHeader;
@@ -183,49 +184,56 @@ public class EmailManager {
         }
     }
 
-
     public boolean moveEmail(Message message, String fromFolderName, String toFolderName) {
         Folder fromFolder = null;
         Folder toFolder = null;
         try {
+            // Asegurar que la conexión está activa, reconectar si es necesario
             if (!store.isConnected()) {
-                // Reintentar la conexión
                 store.connect();
             }
 
             fromFolder = store.getFolder(fromFolderName);
-            toFolder = store.getFolder(toFolderName);
+            toFolder = store.getFolder("[Gmail]/" + toFolderName);
 
+            // Abrir la carpeta de origen en modo de lectura/escritura
             if (!fromFolder.isOpen()) {
-                fromFolder.open(Folder.READ_WRITE);
             }
+            fromFolder.open(Folder.READ_WRITE);
+
+            // Verificar y preparar la carpeta destino
             if (!toFolder.exists()) {
                 toFolder.create(Folder.HOLDS_MESSAGES);
             }
             if (!toFolder.isOpen()) {
-                toFolder.open(Folder.READ_WRITE);
             }
+            toFolder.open(Folder.READ_WRITE);
 
-            Message[] messagesToMove = new Message[]{message};
-            fromFolder.copyMessages(messagesToMove, toFolder);
-            message.setFlag(Flags.Flag.DELETED, true);
-            fromFolder.expunge();
+            // Realizar la operación de mover
+            fromFolder.copyMessages(new Message[]{message}, toFolder);
+//            message.setFlag(Flags.Flag.DELETED, true);  // Marcar el mensaje para ser eliminado en la carpeta origen
+//            fromFolder.expunge();  // Limpiar los mensajes marcados como eliminados
 
             return true;
         } catch (MessagingException e) {
+            System.err.println("Error al mover el mensaje: " + e.getMessage());
             e.printStackTrace();
             return false;
         } finally {
-            try {
-                if (fromFolder != null && fromFolder.isOpen()) {
-                    fromFolder.close(true);
-                }
-                if (toFolder != null && toFolder.isOpen()) {
-                    toFolder.close(true);
-                }
-            } catch (MessagingException e) {
-                e.printStackTrace();
+            // Cerrar ambas carpetas asegurando que los cambios se aplican
+            closeFolder(fromFolder);
+            closeFolder(toFolder);
+        }
+    }
+
+    private void closeFolder(Folder folder) {
+        try {
+            if (folder != null && folder.isOpen()) {
+                folder.close(true); // Aplicar los cambios pendientes al cerrar
             }
+        } catch (MessagingException e) {
+            System.err.println("Error al cerrar la carpeta: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
@@ -282,44 +290,133 @@ public class EmailManager {
         }
     }
 
+    private String getTrashFolderFullName() throws MessagingException {
+        if (!store.isConnected()) {
+            connect(); // Asegúrate de estar conectado
+        }
+
+        // Recuperar todas las carpetas disponibles
+        Folder[] folders = store.getFolder("[Gmail]").list();
+       
+        for (Folder folder : folders) {
+            System.out.println(folder.getName());
+            // Puedes adaptar el nombre según el servidor o la configuración del idioma
+            if (folder.getName().equalsIgnoreCase("Trash") || folder.getName().equalsIgnoreCase("Papelera") || folder.getName().equalsIgnoreCase("Bin") || folder.getName().equalsIgnoreCase("Paperera")) {
+                return folder.getFullName();
+            }
+        }
+
+        return "Trash folder not found"; // Devuelve un mensaje si no se encuentra la carpeta
+    }
+
     public boolean deleteEmail(String folderName, int messageId) {
         Folder folder = null;
+        Folder toFolder = null;
         try {
+            // Asegurar que la conexión está activa, reconectar si es necesario
             if (!store.isConnected()) {
-                if (!connect()) {
-                    System.err.println("No se pudo conectar al servidor IMAP para eliminar el correo.");
-                    return false;  // No se pudo reconectar
-                }
+                store.connect();
             }
 
             folder = store.getFolder(folderName);
-            if (!folder.exists()) {
-                System.err.println("La carpeta especificada no existe.");
-                return false;  // La carpeta no existe
-            }
+            toFolder = store.getFolder(getTrashFolderFullName());
 
+            // Abrir la carpeta de origen en modo de lectura/escritura
+            if (!folder.isOpen()) {
+            }
             folder.open(Folder.READ_WRITE);
 
+           
+            toFolder.open(Folder.READ_WRITE);
+
             Message messageToDelete = folder.getMessage(messageId);
-            if (messageToDelete == null) {
-                System.err.println("El mensaje con el ID especificado no existe.");
-                return false;  // El mensaje no existe
-            }
+            folder.copyMessages(new Message[]{messageToDelete}, toFolder);
 
-            messageToDelete.setFlag(Flags.Flag.DELETED, true);  // Marcar el mensaje para eliminación
-            folder.expunge();  // Expurgar los mensajes marcados para eliminar de la carpeta
-
-            return true;  // Devuelve true si el mensaje fue eliminado exitosamente
+            return true;
         } catch (MessagingException e) {
-            e.printStackTrace();  // Imprimir el stack trace para depuración
-            return false;  // Devuelve false en caso de excepción
+            System.err.println("Error al mover el mensaje: " + e.getMessage());
+            e.printStackTrace();
+            return false;
         } finally {
-            try {
-                if (folder != null && folder.isOpen()) {
-                    folder.close(true);  // Cerrar la carpeta y aplicar los cambios
+            closeFolder(toFolder);
+        }
+    }
+    
+    
+//    public boolean deleteEmail(String folderName, int messageId) {
+//        Folder folder = null;
+//        try {
+//            if (!store.isConnected()) {
+//                if (!connect()) {
+//                    System.err.println("No se pudo conectar al servidor IMAP para eliminar el correo.");
+//                    return false;  // No se pudo reconectar
+//                }
+//            }
+//
+//            folder = store.getFolder(folderName);
+//            if (!folder.exists()) {
+//                System.err.println("La carpeta especificada no existe.");
+//                return false;  // La carpeta no existe
+//            }
+//
+//            folder.open(Folder.READ_WRITE);
+//
+//            Message messageToDelete = folder.getMessage(messageId);
+//            if (messageToDelete == null) {
+//                System.err.println("El mensaje con el ID especificado no existe.");
+//                return false;  // El mensaje no existe
+//            }
+//
+//            messageToDelete.setFlag(Flags.Flag.DELETED, true);  // Marcar el mensaje para eliminación
+//            folder.expunge();  // Expurgar los mensajes marcados para eliminar de la carpeta
+//
+//            return true;  // Devuelve true si el mensaje fue eliminado exitosamente
+//        } catch (MessagingException e) {
+//            e.printStackTrace();  // Imprimir el stack trace para depuración
+//            return false;  // Devuelve false en caso de excepción
+//        } finally {
+//            try {
+//                if (folder != null && folder.isOpen()) {
+//                    folder.close(true);  // Cerrar la carpeta y aplicar los cambios
+//                }
+//            } catch (MessagingException e) {
+//                System.err.println("Error al cerrar la carpeta: " + e.getMessage());
+//            }
+//        }
+//    }
+    
+    
+    
+    
+    
+
+    public List<File> downloadAttachments(Mail mail) throws MessagingException, IOException {
+        List<File> attachments = new ArrayList<>();
+        Message message = mail.getMessage();
+
+        if (message.isMimeType("multipart/*")) {
+            Multipart multipart = (Multipart) message.getContent();
+
+            for (int i = 0; i < multipart.getCount(); i++) {
+                BodyPart bodyPart = multipart.getBodyPart(i);
+                if (Part.ATTACHMENT.equalsIgnoreCase(bodyPart.getDisposition())) {
+                    String filename = bodyPart.getFileName();
+                    InputStream is = bodyPart.getInputStream();
+                    File file = new File(System.getProperty("java.io.tmpdir") + File.separator + filename);
+                    copyInputStreamToFile(is, file);
+                    attachments.add(file);
                 }
-            } catch (MessagingException e) {
-                System.err.println("Error al cerrar la carpeta: " + e.getMessage());
+            }
+        }
+        return attachments;
+    }
+
+    private void copyInputStreamToFile(InputStream inputStream, File file) throws IOException {
+        try ( FileOutputStream outputStream = new FileOutputStream(file)) {
+            byte[] buffer = new byte[1024];
+            int length;
+            while ((length = inputStream.read(buffer)) != -1) {
+                outputStream.write(buffer, 0, length);
             }
         }
     }

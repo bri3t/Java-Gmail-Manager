@@ -35,7 +35,7 @@ public class Reenvio extends JDialog {
 
         fieldsPanel.add(createLabeledField("Para: ", toField = new JTextField()));
         fieldsPanel.add(createLabeledField("CC:     ", ccField = new JTextField()));
-        fieldsPanel.add(createLabeledField("BCC:  ", bccField = new JTextField()));
+        fieldsPanel.add(createLabeledField("CCO:  ", bccField = new JTextField()));
 
         contentArea = new JTextArea(5, 10);
         contentArea.setLineWrap(true);

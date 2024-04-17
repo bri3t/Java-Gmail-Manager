@@ -1,12 +1,15 @@
 package front;
 
 import Conn.EmailManager;
+import auth.Login;
 import javax.mail.*;
 import javax.swing.*;
 import javax.swing.tree.DefaultMutableTreeNode;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.io.IOException;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import static javax.swing.WindowConstants.EXIT_ON_CLOSE;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
@@ -17,7 +20,7 @@ import models.Mail;
 
 public class App extends JFrame {
 
-    final int WFRAME = 600;
+    final int WFRAME = 800;
     final int HFRAME = 400;
 
     private EmailManager emailManager;
@@ -41,9 +44,11 @@ public class App extends JFrame {
     String folderName = "";
     Folder[] folders;
     Folder carpetaActual;
+    String userSesion;
 
     // Constructor
     public App(String user, String password) {
+        userSesion = user;
         emailManager = new EmailManager(user, password);
 
         iniciarMenu();
@@ -61,36 +66,55 @@ public class App extends JFrame {
         setVisible(true);
     }
 
-    // Método para iniciar el menú
     private void iniciarMenu() {
+        // Configuración existente del menú
         menuBar = new JMenuBar();
         menu = new JMenu("Menú");
+        actualizarMenuItem = new JMenuItem("Actualizar");
+        escribirMenuItem = new JMenuItem("Escribir");
+
+        menu.add(actualizarMenuItem);
+        menu.add(escribirMenuItem);
         menuBar.add(menu);
 
-        actualizarMenuItem = new JMenuItem("Actualizar");
-        menu.add(actualizarMenuItem);
         actualizarMenuItem.addActionListener(e -> actualizarContenidoCarpeta());
-
-        escribirMenuItem = new JMenuItem("Escribir");
         escribirMenuItem.addActionListener(e -> new SendMail(emailManager, (Frame) getOwner()));
-        menu.add(escribirMenuItem);
 
-        setJMenuBar(menuBar);
+        // Añadir JLabel y JButton para cerrar sesión
+        JPanel userPanel = new JPanel(new BorderLayout());
+        userPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10)); // Añadir margen: top, left, bottom, right
+        JLabel userLabel = new JLabel("Cuenta abierta: " + userSesion);
+        JButton logoutButton = new JButton("Cerrar sesión");
 
+        logoutButton.addActionListener(e -> logout());
+        userPanel.add(userLabel, BorderLayout.WEST);
+        userPanel.add(logoutButton, BorderLayout.EAST);
+
+        // Añadir el panel del usuario al frame
+        getContentPane().add(menuBar, BorderLayout.NORTH);
+        getContentPane().add(userPanel, BorderLayout.SOUTH);
+
+        // Otros componentes (tree, list, etc.)
         foldersTree = new JTree();
         listModel = new DefaultListModel<>();
         emailList = new JList<>(listModel);
         emailList.setLayoutOrientation(JList.VERTICAL);
-
         splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,
                 new JScrollPane(foldersTree),
                 new JScrollPane(emailList));
         splitPane.setDividerLocation(200);
-
-        emailActionsPanel = new JPanel(new FlowLayout());
-
         getContentPane().add(splitPane, BorderLayout.CENTER);
-        getContentPane().add(emailActionsPanel, BorderLayout.SOUTH);
+    }
+
+// Método para manejar el cierre de sesión
+    private void logout() {
+        try {
+            emailManager.disconnect();
+        } catch (MessagingException ex) {
+            ex.printStackTrace();
+        }
+        dispose(); // Cerrar la ventana actual
+        new Login(); // Abrir la ventana de login (debes implementar esta clase)
     }
 
     // Método para iniciar la tabla de carpetas
@@ -132,9 +156,9 @@ public class App extends JFrame {
                                     try {
                                         mailSeleccionado = emailManager.extractMessageParts(mensajesActuales[i]);
                                         mailSeleccionado.setGh(cabezerasActuales.get(i));
-                                        System.out.println(carpetaActual.getFullName());
                                         mailSeleccionado.setFolder(carpetaActual);
                                         mailSeleccionado.setMessage(mensajesActuales[i]);
+                                        mailSeleccionado.setFromMail(cabezerasActuales.get(i).getFrom());
                                         break; // Detiene el bucle una vez que encuentra el ID correcto
                                     } catch (MessagingException ex) {
                                         ex.printStackTrace();
@@ -165,7 +189,7 @@ public class App extends JFrame {
 
                 listModel.clear(); // Limpiar el modelo antes de agregar nuevos elementos
                 for (GmailHeader header : cabezerasActuales) {
-                    listModel.addElement(header.getFrom() + " - " + header.getAsunto() + " - " + header.getFecha());
+                    listModel.addElement(header.getFrom() + "     ---    " + header.getAsunto() + "     ---    " + header.getFecha());
                 }
             } catch (MessagingException me) {
                 listModel.clear();
@@ -177,6 +201,6 @@ public class App extends JFrame {
     }
 
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> new App("mail", "password"));
+        SwingUtilities.invokeLater(() -> new App("email", "password"));
     }
 }
