@@ -53,7 +53,7 @@ public class MoveEmail extends JDialog {
         try {
             Folder[] folders = emailManager.getMailFolders();
             for (Folder folder : folders) {
-                if (!folder.getName().equalsIgnoreCase("INBOX")) { // No permitir mover a INBOX por simplicidad
+                if (!folder.getName().equalsIgnoreCase("INBOX") ) { // No permitir mover a INBOX por simplicidad
                     folderComboBox.addItem(folder.getName());
                 }
             }
@@ -67,7 +67,7 @@ public class MoveEmail extends JDialog {
             String targetFolderName = (String) folderComboBox.getSelectedItem();
             if (targetFolderName != null && !targetFolderName.isEmpty()) {
                 try {
-                    boolean result = emailManager.moveEmail(messageToMove, mail.getFolder().getFullName(), targetFolderName);
+                    boolean result = emailManager.moveEmail(messageToMove, mail.getFolder(), targetFolderName);
                     if (result) {
                         JOptionPane.showMessageDialog(this, "Correo movido exitosamente a " + targetFolderName, "Éxito", JOptionPane.INFORMATION_MESSAGE);
                         dispose();

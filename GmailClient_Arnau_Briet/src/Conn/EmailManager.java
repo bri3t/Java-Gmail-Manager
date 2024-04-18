@@ -1,5 +1,7 @@
 package Conn;
 
+import front.App;
+import java.awt.Desktop;
 import java.io.File;
 import java.io.FileOutputStream;
 import javax.mail.*;
@@ -9,6 +11,9 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import javax.swing.JOptionPane;
 import models.GmailHeader;
 import models.Mail;
 
@@ -18,12 +23,21 @@ public class EmailManager {
     private String password;
     private Session session;
     private Store store;
+    private Folder carpetaActual;
 
     public EmailManager(String username, String password) {
         this.username = username;
         this.password = password;
     }
 
+  
+
+    public void setCarpetaActual(Folder carpetaActual) {
+        this.carpetaActual = carpetaActual;
+    }
+
+    
+    
     // Conectar al servidor IMAP
     public boolean connect() {
         Properties properties = new Properties();
@@ -72,29 +86,44 @@ public class EmailManager {
     }
 
     // Obtener correos de un directorio específico
-    public Message[] fetchMessages(String folderName) throws MessagingException {
+    public Message[] fetchMessages(Folder folder, int num, int messageCountActual) throws MessagingException {
         if (!store.isConnected()) {
             connect();
         }
 
-        Folder folder = store.getFolder("[Gmail]/" + folderName);
+        if (!folder.isOpen()) {
+            folder.open(Folder.READ_ONLY);
+        }
 
-        folder.open(Folder.READ_ONLY);
-
-        // Obtener los últimos 10 correos
         int messageCount = folder.getMessageCount();
-        Message[] messages = folder.getMessages(Math.max(1, messageCount - 9), messageCount);
+        int start = Math.max(1, messageCount - 9), end = messageCount;
 
+        if (num == 1) {
+            if (messageCount >= messageCountActual + 18) {
+                start = Math.min(messageCountActual + 9, messageCount);
+                end = Math.min(start + 9, messageCount);
+            }
+        } else if (num == 0) {
+            // Retroceder a la página anterior de mensajes
+            start = Math.max(1, messageCountActual - 9); // Retrocede 10 mensajes desde el inicio de la página actual
+            end = Math.max(1, messageCountActual);  // Hace que la página finalice donde comenzó la actual
+        }
+        App.messageCountActual = start;  // Actualizar el conteo actual al inicio de la nueva página
+        Message[] messages = folder.getMessages(start, end);
+
+        
         return messages;
     }
 
     public List<GmailHeader> obtenerHeaders(Message[] messages) throws MessagingException {
         List<GmailHeader> headers = new ArrayList<>();
-        for (Message message : messages) {
-            String sentDate = message.getSentDate().toString();
-            String subject = message.getSubject();
-            String from = message.getFrom()[0].toString();
-            int idMessage = message.getMessageNumber();
+
+        for (int i = 0; i < messages.length; i++) {
+
+            String sentDate = messages[i].getSentDate().toString();
+            String subject = messages[i].getSubject();
+            String from = messages[i].getFrom()[0].toString();
+            int idMessage = messages[i].getMessageNumber();
 
             headers.add(new GmailHeader(sentDate, subject, from, idMessage));
         }
@@ -107,6 +136,10 @@ public class EmailManager {
         String textHTML = null;
         List<BodyPart> bodyParts = new ArrayList<>();
 
+        if (!carpetaActual.isOpen()) {
+            carpetaActual.open(Folder.READ_WRITE);
+        }
+        
         // Chequear si el contenido es multipart (tiene varias partes)
         if (message.isMimeType("multipart/*")) {
             Multipart multipart = (Multipart) message.getContent();
@@ -138,6 +171,7 @@ public class EmailManager {
         mail.setTextMessage(textMessage);
         mail.setTextHTML(textHTML);
 
+        carpetaActual.close();
         return mail;
     }
 
@@ -184,35 +218,52 @@ public class EmailManager {
         }
     }
 
-    public boolean moveEmail(Message message, String fromFolderName, String toFolderName) {
-        Folder fromFolder = null;
+//    private void moverCorreoACarpeta(Folder carpetaDesti) {
+//
+//        try {
+//            currentFolder.open(Folder.READ_WRITE);
+//
+//            Message[] mensajesSeleccionados = {currentFolder.getMessage(indexCorreuActiu + 1)};
+//
+//            carpetaDesti.open(Folder.READ_WRITE);
+//
+//            currentFolder.copyMessages(mensajesSeleccionados, carpetaDesti);
+//
+//            carpetaDesti.close(false);
+//            currentFolder.close(true);
+//
+//            System.out.println("Los mensajes han sido movidos correctamente.");
+//        } catch (Exception ex) {
+//            ex.printStackTrace();
+//                }
+//        }
+    
+
+    public boolean moveEmail(Message message, Folder fromFolder, String toFolderName) {
         Folder toFolder = null;
         try {
             // Asegurar que la conexión está activa, reconectar si es necesario
             if (!store.isConnected()) {
                 store.connect();
             }
+            if (fromFolder.isOpen()) {
+                fromFolder.close();
+            }
 
-            fromFolder = store.getFolder(fromFolderName);
+            System.out.println(toFolderName);
             toFolder = store.getFolder("[Gmail]/" + toFolderName);
 
             // Abrir la carpeta de origen en modo de lectura/escritura
-            if (!fromFolder.isOpen()) {
-            }
             fromFolder.open(Folder.READ_WRITE);
 
             // Verificar y preparar la carpeta destino
             if (!toFolder.exists()) {
                 toFolder.create(Folder.HOLDS_MESSAGES);
             }
-            if (!toFolder.isOpen()) {
-            }
-            toFolder.open(Folder.READ_WRITE);
+                toFolder.open(Folder.READ_WRITE);
 
             // Realizar la operación de mover
             fromFolder.copyMessages(new Message[]{message}, toFolder);
-//            message.setFlag(Flags.Flag.DELETED, true);  // Marcar el mensaje para ser eliminado en la carpeta origen
-//            fromFolder.expunge();  // Limpiar los mensajes marcados como eliminados
 
             return true;
         } catch (MessagingException e) {
@@ -220,22 +271,17 @@ public class EmailManager {
             e.printStackTrace();
             return false;
         } finally {
-            // Cerrar ambas carpetas asegurando que los cambios se aplican
-            closeFolder(fromFolder);
-            closeFolder(toFolder);
+            try {
+                // Cerrar ambas carpetas asegurando que los cambios se aplican
+                fromFolder.close();
+                toFolder.close();
+            } catch (MessagingException ex) {
+                ex.printStackTrace();
+            }
         }
     }
 
-    private void closeFolder(Folder folder) {
-        try {
-            if (folder != null && folder.isOpen()) {
-                folder.close(true); // Aplicar los cambios pendientes al cerrar
-            }
-        } catch (MessagingException e) {
-            System.err.println("Error al cerrar la carpeta: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
+   
 
     // Enviar un correo electrónico
     public boolean sendEmail(String[] to, String[] cc, String[] bcc, String subject, String content, boolean isHtmlContent, String[] attachments) {
@@ -276,7 +322,7 @@ public class EmailManager {
             transport.close();
 
             return true;
-        } catch (Exception e) {
+        } catch (IOException | MessagingException e) {
             System.err.println("Error al enviar el correo: " + e.getMessage());
             return false;
         }
@@ -297,7 +343,7 @@ public class EmailManager {
 
         // Recuperar todas las carpetas disponibles
         Folder[] folders = store.getFolder("[Gmail]").list();
-       
+
         for (Folder folder : folders) {
             System.out.println(folder.getName());
             // Puedes adaptar el nombre según el servidor o la configuración del idioma
@@ -306,11 +352,10 @@ public class EmailManager {
             }
         }
 
-        return "Trash folder not found"; // Devuelve un mensaje si no se encuentra la carpeta
+        return "Carpeta papelera no encontrado"; // Devuelve un mensaje si no se encuentra la carpeta
     }
 
-    public boolean deleteEmail(String folderName, int messageId) {
-        Folder folder = null;
+    public boolean deleteEmail(Folder folder, int messageId) {
         Folder toFolder = null;
         try {
             // Asegurar que la conexión está activa, reconectar si es necesario
@@ -318,15 +363,16 @@ public class EmailManager {
                 store.connect();
             }
 
-            folder = store.getFolder(folderName);
+            if (folder.isOpen()) {
+                folder.close();
+            }
+            
             toFolder = store.getFolder(getTrashFolderFullName());
 
             // Abrir la carpeta de origen en modo de lectura/escritura
-            if (!folder.isOpen()) {
-            }
+           
             folder.open(Folder.READ_WRITE);
 
-           
             toFolder.open(Folder.READ_WRITE);
 
             Message messageToDelete = folder.getMessage(messageId);
@@ -338,11 +384,15 @@ public class EmailManager {
             e.printStackTrace();
             return false;
         } finally {
-            closeFolder(toFolder);
+            try {
+                toFolder.close();
+                folder.close();
+            } catch (MessagingException ex) {
+                ex.printStackTrace();
+            }
         }
     }
-    
-    
+
 //    public boolean deleteEmail(String folderName, int messageId) {
 //        Folder folder = null;
 //        try {
@@ -384,26 +434,19 @@ public class EmailManager {
 //            }
 //        }
 //    }
-    
-    
-    
-    
-    
-
-    public List<File> downloadAttachments(Mail mail) throws MessagingException, IOException {
+    public List<File> downloadAttachments(Mail mail, File destinationFolder) throws MessagingException, IOException {
         List<File> attachments = new ArrayList<>();
         Message message = mail.getMessage();
 
         if (message.isMimeType("multipart/*")) {
             Multipart multipart = (Multipart) message.getContent();
-
             for (int i = 0; i < multipart.getCount(); i++) {
                 BodyPart bodyPart = multipart.getBodyPart(i);
                 if (Part.ATTACHMENT.equalsIgnoreCase(bodyPart.getDisposition())) {
-                    String filename = bodyPart.getFileName();
                     InputStream is = bodyPart.getInputStream();
-                    File file = new File(System.getProperty("java.io.tmpdir") + File.separator + filename);
-                    copyInputStreamToFile(is, file);
+                    String filename = bodyPart.getFileName();
+                    File file = new File(destinationFolder, filename);
+                    saveFile(is, file);
                     attachments.add(file);
                 }
             }
@@ -411,12 +454,12 @@ public class EmailManager {
         return attachments;
     }
 
-    private void copyInputStreamToFile(InputStream inputStream, File file) throws IOException {
-        try ( FileOutputStream outputStream = new FileOutputStream(file)) {
-            byte[] buffer = new byte[1024];
-            int length;
-            while ((length = inputStream.read(buffer)) != -1) {
-                outputStream.write(buffer, 0, length);
+    private void saveFile(InputStream is, File file) throws IOException {
+        try ( FileOutputStream fos = new FileOutputStream(file)) {
+            byte[] buf = new byte[4096];
+            int bytesRead;
+            while ((bytesRead = is.read(buf)) != -1) {
+                fos.write(buf, 0, bytesRead);
             }
         }
     }

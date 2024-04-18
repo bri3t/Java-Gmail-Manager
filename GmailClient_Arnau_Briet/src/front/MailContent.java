@@ -1,10 +1,20 @@
 package front;
 
 import Conn.EmailManager;
+import java.awt.BorderLayout;
+import java.awt.Desktop;
+import java.awt.Frame;
+import java.awt.GridLayout;
+import java.io.File;
+import java.io.IOException;
+import java.util.List;
+import java.util.ArrayList;
+import javax.mail.Address;
+import javax.mail.Message;
+import javax.mail.MessagingException;
 import javax.swing.*;
-import java.awt.*;
 import models.Mail;
-import javax.mail.*;
+
 
 public class MailContent extends JDialog {
 
@@ -26,11 +36,13 @@ public class MailContent extends JDialog {
         JMenuItem itemReenviar = new JMenuItem("Reenviar");
         JMenuItem itemBorrar = new JMenuItem("Borrar");
         JMenuItem itemMover = new JMenuItem("Mover de carpeta");
+        JMenuItem itemDescargarAdjuntos = new JMenuItem("Descargar Adjuntos");
+
         // Configurar acciones del menú
         itemResponder.addActionListener(e -> new Responder(owner, emailManager, mail));
         itemReenviar.addActionListener(e -> new Reenvio(owner, emailManager, mail.getMessage()));
         itemBorrar.addActionListener(e -> {
-            if (emailManager.deleteEmail(mail.getFolder().getFullName(), mail.getMessage().getMessageNumber())) {
+            if (emailManager.deleteEmail(mail.getFolder(), mail.getMessage().getMessageNumber())) {
                 JOptionPane.showMessageDialog(this, "Correo eliminado correctamente", "Eliminado", JOptionPane.INFORMATION_MESSAGE);
                 dispose();
             } else {
@@ -38,11 +50,14 @@ public class MailContent extends JDialog {
             }
         });
         itemMover.addActionListener(e -> new MoveEmail(owner, emailManager, mail));
+        itemDescargarAdjuntos.addActionListener(e -> descargarAdjuntos());
+
         // Agregar ítems al menú
         menuAcciones.add(itemResponder);
         menuAcciones.add(itemReenviar);
         menuAcciones.add(itemBorrar);
         menuAcciones.add(itemMover);
+        menuAcciones.add(itemDescargarAdjuntos);
         menuBar.add(menuAcciones);
         setJMenuBar(menuBar);
 
@@ -75,11 +90,44 @@ public class MailContent extends JDialog {
 
     // Método auxiliar para obtener las direcciones de correo como String
     private String getAddressesString(Address[] addresses) {
-        if (addresses == null) return "N/A";
+        if (addresses == null) {
+            return "N/A";
+        }
         StringBuilder sb = new StringBuilder();
         for (Address address : addresses) {
             sb.append(address.toString()).append("; ");
         }
         return sb.toString();
     }
+
+// Método para descargar y abrir archivos adjuntos
+    private void descargarAdjuntos() {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("Seleccione la carpeta para guardar los archivos adjuntos");
+        fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+
+        int userSelection = fileChooser.showSaveDialog(this);
+        if (userSelection == JFileChooser.APPROVE_OPTION) {
+            File folder = fileChooser.getSelectedFile();
+
+            try {
+                List<File> archivos = emailManager.downloadAttachments(mail, folder);
+                if (archivos.isEmpty()) {
+                    JOptionPane.showMessageDialog(this, "No hay archivos adjuntos en este correo.", "Información", JOptionPane.INFORMATION_MESSAGE);
+                } else {
+                    Desktop desktop = Desktop.isDesktopSupported() ? Desktop.getDesktop() : null;
+                    for (File archivo : archivos) {
+                        if (archivo.exists() && desktop != null) {
+                            desktop.open(archivo);  // Abrir archivo con la aplicación predeterminada
+                        }
+                    }
+                    JOptionPane.showMessageDialog(this, "Archivos descargados y abiertos exitosamente en: " + folder.getAbsolutePath(), "Descarga Completa", JOptionPane.INFORMATION_MESSAGE);
+                }
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Error al descargar o abrir archivos: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                ex.printStackTrace();
+            }
+        }
+    }
+
 }

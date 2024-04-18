@@ -6,14 +6,16 @@ import javax.mail.*;
 import javax.swing.*;
 import javax.swing.tree.DefaultMutableTreeNode;
 import java.awt.*;
-import java.awt.event.ActionEvent;
 import java.io.IOException;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import java.util.Arrays;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Collections;
+import javax.mail.Message;
+
 import static javax.swing.WindowConstants.EXIT_ON_CLOSE;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
-import javax.swing.event.TreeSelectionEvent;
 import javax.swing.tree.DefaultTreeModel;
 import models.GmailHeader;
 import models.Mail;
@@ -36,7 +38,6 @@ public class App extends JFrame {
     private JList<String> emailList;
     private DefaultListModel<String> listModel;
     private JSplitPane splitPane;
-    private JPanel emailActionsPanel;
 
     java.util.List<GmailHeader> cabezerasActuales;
     Message[] mensajesActuales;
@@ -45,6 +46,8 @@ public class App extends JFrame {
     Folder[] folders;
     Folder carpetaActual;
     String userSesion;
+
+    public static int messageCountActual = 0;
 
     // Constructor
     public App(String user, String password) {
@@ -77,24 +80,40 @@ public class App extends JFrame {
         menu.add(escribirMenuItem);
         menuBar.add(menu);
 
-        actualizarMenuItem.addActionListener(e -> actualizarContenidoCarpeta());
+        actualizarMenuItem.addActionListener(e -> actualizarContenidoCarpeta(2));
         escribirMenuItem.addActionListener(e -> new SendMail(emailManager, (Frame) getOwner()));
 
-        // Añadir JLabel y JButton para cerrar sesión
+        // Panel para botones de navegación
+        JPanel navigationPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        JButton leftArrowButton = new JButton("<--  ");
+        JLabel cambiarPagina = new JLabel("Cambiar de página");
+        JButton rightArrowButton = new JButton("  -->");
+
+        leftArrowButton.addActionListener(e -> actualizarContenidoCarpeta(1));
+        rightArrowButton.addActionListener(e -> actualizarContenidoCarpeta(0));
+
+        navigationPanel.add(leftArrowButton);
+        navigationPanel.add(cambiarPagina);
+        navigationPanel.add(rightArrowButton);
+
+        // Panel de usuario con botón de cerrar sesión
         JPanel userPanel = new JPanel(new BorderLayout());
-        userPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10)); // Añadir margen: top, left, bottom, right
+        userPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
         JLabel userLabel = new JLabel("Cuenta abierta: " + userSesion);
         JButton logoutButton = new JButton("Cerrar sesión");
-
         logoutButton.addActionListener(e -> logout());
         userPanel.add(userLabel, BorderLayout.WEST);
         userPanel.add(logoutButton, BorderLayout.EAST);
 
-        // Añadir el panel del usuario al frame
-        getContentPane().add(menuBar, BorderLayout.NORTH);
+        // Añadir menú de navegación y panel de usuario al frame
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.add(menuBar, BorderLayout.NORTH);
+        topPanel.add(navigationPanel, BorderLayout.SOUTH);
+
+        getContentPane().add(topPanel, BorderLayout.NORTH);
         getContentPane().add(userPanel, BorderLayout.SOUTH);
 
-        // Otros componentes (tree, list, etc.)
+        // Configurar el área central con el árbol y la lista de correos
         foldersTree = new JTree();
         listModel = new DefaultListModel<>();
         emailList = new JList<>(listModel);
@@ -103,6 +122,7 @@ public class App extends JFrame {
                 new JScrollPane(foldersTree),
                 new JScrollPane(emailList));
         splitPane.setDividerLocation(200);
+
         getContentPane().add(splitPane, BorderLayout.CENTER);
     }
 
@@ -135,10 +155,16 @@ public class App extends JFrame {
                     for (Folder folder : folders) {
                         if (folder.getName().equalsIgnoreCase(folderName)) {
                             carpetaActual = folder;
+                            emailManager.setCarpetaActual(carpetaActual);
                             break;
                         }
                     }
-                    actualizarContenidoCarpeta();
+                    try {
+                        messageCountActual = carpetaActual.getMessageCount();
+                        actualizarContenidoCarpeta(2);
+                    } catch (MessagingException ex) {
+                        ex.printStackTrace();
+                    }
                 }
             });
 
@@ -181,26 +207,49 @@ public class App extends JFrame {
     }
 
     // Método para actualizar el contenido de la carpeta seleccionada
-    private void actualizarContenidoCarpeta() {
+    private void actualizarContenidoCarpeta(int num) {
         if (folderName != null && !folderName.isEmpty()) {
             try {
-                mensajesActuales = emailManager.fetchMessages(folderName);
+                mensajesActuales = emailManager.fetchMessages(carpetaActual, num, messageCountActual);
                 cabezerasActuales = emailManager.obtenerHeaders(mensajesActuales);
 
-                listModel.clear(); // Limpiar el modelo antes de agregar nuevos elementos
+                // Limpiar el modelo antes de agregar nuevos elementos
+                listModel.clear();
+
+                // Crear listas temporales para invertir el orden
+                List<GmailHeader> reversedHeaders = new ArrayList<>(cabezerasActuales);
+                List<Message> reversedMessages = new ArrayList<>(Arrays.asList(mensajesActuales));
+
+                // Invertir las listas
+                Collections.reverse(reversedHeaders);
+                Collections.reverse(reversedMessages);
+
+                // Actualizar las listas actuales a las invertidas
+                cabezerasActuales = reversedHeaders;
+                mensajesActuales = reversedMessages.toArray(new Message[reversedMessages.size()]);
+
+                // Añadir los elementos invertidos al modelo de lista
                 for (GmailHeader header : cabezerasActuales) {
                     listModel.addElement(header.getFrom() + "     ---    " + header.getAsunto() + "     ---    " + header.getFecha());
                 }
             } catch (MessagingException me) {
                 listModel.clear();
                 listModel.addElement("Error retrieving messages: " + me.getMessage());
+            } finally {
+                try {
+                    if (carpetaActual != null && carpetaActual.isOpen()) {
+                        carpetaActual.close(false); // Cierra la carpeta sin aplicar cambios
+                    }
+                } catch (MessagingException ex) {
+                    ex.printStackTrace();
+                }
             }
         } else {
-            JOptionPane.showMessageDialog(this, "No folder is selected or folder is empty.", "Update Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "No hay carpetas seleccionadas.", "Update Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
-//    public static void main(String[] args) {
-//        SwingUtilities.invokeLater(() -> new App("email", "password"));
-//    }
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(() -> new App("mail", "password"));
+    }
 }
