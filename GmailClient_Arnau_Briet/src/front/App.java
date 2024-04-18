@@ -46,6 +46,7 @@ public class App extends JFrame {
     Folder[] folders;
     Folder carpetaActual;
     String userSesion;
+    App app = this;
 
     public static int messageCountActual = 0;
 
@@ -161,7 +162,7 @@ public class App extends JFrame {
                     }
                     try {
                         messageCountActual = carpetaActual.getMessageCount();
-                        actualizarContenidoCarpeta(2);
+                        actualizarContenidoCarpeta(99);
                     } catch (MessagingException ex) {
                         ex.printStackTrace();
                     }
@@ -194,7 +195,7 @@ public class App extends JFrame {
                                 }
                             }
 
-                            new MailContent(mailSeleccionado, emailManager, (Frame) getOwner());
+                            new MailContent(mailSeleccionado, emailManager, (Frame) getOwner(), app);
                         } else {
                         }
                     }
@@ -207,7 +208,7 @@ public class App extends JFrame {
     }
 
     // Método para actualizar el contenido de la carpeta seleccionada
-    private void actualizarContenidoCarpeta(int num) {
+    public void actualizarContenidoCarpeta(int num) {
         if (folderName != null && !folderName.isEmpty()) {
             try {
                 mensajesActuales = emailManager.fetchMessages(carpetaActual, num, messageCountActual);
@@ -248,8 +249,9 @@ public class App extends JFrame {
             JOptionPane.showMessageDialog(this, "No hay carpetas seleccionadas.", "Update Error", JOptionPane.ERROR_MESSAGE);
         }
     }
+   
 
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> new App("mail", "password"));
+        SwingUtilities.invokeLater(() -> new App("mail", "pass"));
     }
 }
