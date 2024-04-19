@@ -11,6 +11,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.mail.Address;
 import javax.mail.BodyPart;
 import javax.mail.Folder;
@@ -25,6 +29,9 @@ public class MailContent extends JDialog {
 
     EmailManager emailManager;
     Mail mail;
+
+    public MailContent() {
+    }
 
     public MailContent(Mail m, EmailManager em, Frame owner, App app) {
         super(owner, "Contenido del correo", true);
@@ -46,8 +53,7 @@ public class MailContent extends JDialog {
         // Configurar acciones del menú
         itemResponder.addActionListener(e -> new Responder(owner, emailManager, mail));
         itemReenviar.addActionListener(e -> {
-            new Reenvio(owner, emailManager, mail.getMessage());
-            dispose();
+            new Reenvio(owner, emailManager, mail.getMessage(), this);
         });
         itemBorrar.addActionListener(e -> {
             if (emailManager.deleteEmail(mail.getFolder(), mail.getMessage().getMessageNumber())) {
@@ -59,8 +65,7 @@ public class MailContent extends JDialog {
             }
         });
         itemMover.addActionListener(e -> {
-            new MoveEmail(owner, emailManager, mail);
-            dispose();
+            new MoveEmail(owner, emailManager, mail, this);
             app.actualizarContenidoCarpeta(2);
         });
         itemDescargarAdjuntos.addActionListener(e -> descargarAdjuntos());
@@ -80,7 +85,19 @@ public class MailContent extends JDialog {
             infoPanel.add(new JLabel("De: " + getAddressesString(mail.getMessage().getFrom())));
             infoPanel.add(new JLabel("CC: " + getAddressesString(mail.getMessage().getRecipients(Message.RecipientType.CC))));
             infoPanel.add(new JLabel("Asunto: " + mail.getMessage().getSubject()));
+            Multipart multipart = (Multipart) mail.getMessage().getContent();
+            Set<String> uniqueAttachments = new HashSet<>();
+            for (int i = 0; i < multipart.getCount(); i++) {
+                BodyPart bodyPart = multipart.getBodyPart(i);
+                if (Part.ATTACHMENT.equalsIgnoreCase(bodyPart.getDisposition())) {
+                    String fileName = bodyPart.getFileName();
+                    uniqueAttachments.add(fileName); // Añade el nombre del archivo al conjunto para garantizar la unicidad
+                }
+            }
+            infoPanel.add(new JLabel("Archivos adjuntos:  " + String.valueOf(uniqueAttachments.size())));
         } catch (MessagingException ex) {
+            ex.printStackTrace();
+        } catch (IOException ex) {
             ex.printStackTrace();
         }
         // Añadir el panel de información al norte del BorderLayout
@@ -99,6 +116,10 @@ public class MailContent extends JDialog {
         setSize(600, 400);
         setLocationRelativeTo(null);
         setVisible(true);
+    }
+
+    public void cerrarDialog() {
+        dispose();
     }
 
     // Método auxiliar para obtener las direcciones de correo como String
