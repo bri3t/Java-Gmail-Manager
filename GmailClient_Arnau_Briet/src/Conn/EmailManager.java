@@ -288,7 +288,7 @@ public class EmailManager {
 
             if (attachments != null) {
                 for (String filePath : attachments) {
-                    System.out.println(filePath);
+//                    System.out.println(filePath);
                     MimeBodyPart attachmentPart = new MimeBodyPart();
                     File file = new File(filePath);
                     attachmentPart.attachFile(file);

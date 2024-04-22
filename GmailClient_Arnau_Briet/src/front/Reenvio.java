@@ -20,8 +20,9 @@ public class Reenvio extends JDialog {
     private JButton sendButton, cancelButton;
     private Message originalMessage;
     private EmailManager emailManager;
-    private JList<String> attachmentList;
-    private DefaultListModel<String> attachmentModel;
+    private JLabel attachmentLabel;
+    private JTextArea attachmentArea;
+    private List<String> attachmentNames;
     MailContent mc;
 
     public Reenvio(Frame owner, EmailManager emailManager, Message originalMessage, MailContent mc) {
@@ -29,6 +30,7 @@ public class Reenvio extends JDialog {
         this.emailManager = emailManager;
         this.originalMessage = originalMessage;
         this.mc = mc;
+        this.attachmentNames = new ArrayList<>();
 
         setupUI();
         setupActions();
@@ -58,12 +60,12 @@ public class Reenvio extends JDialog {
         contentPanel.add(scrollPane, BorderLayout.CENTER);
         fieldsPanel.add(contentPanel);
 
-        attachmentModel = new DefaultListModel<>();
-        attachmentList = new JList<>(attachmentModel);
-        JScrollPane attachmentScrollPane = new JScrollPane(attachmentList);
+        attachmentArea = new JTextArea();
+        attachmentArea.setEditable(false);
+        JScrollPane attachmentScrollPane = new JScrollPane(attachmentArea);
         attachmentScrollPane.setPreferredSize(new Dimension(200, 100));
         JPanel attachmentPanel = new JPanel(new BorderLayout());
-        attachmentPanel.add(new JLabel("Attachments:"), BorderLayout.NORTH);
+        attachmentPanel.add(new JLabel("Ficheros adjuntos:"), BorderLayout.NORTH);
         attachmentPanel.add(attachmentScrollPane, BorderLayout.CENTER);
         fieldsPanel.add(attachmentPanel);
 
@@ -81,40 +83,24 @@ public class Reenvio extends JDialog {
 
     private void generateAttachments(Message message) {
         try {
-            //        try {
-//            Object content = message.getContent();
-//            if (content instanceof Multipart) {
-//                Multipart multipart = (Multipart) content;
-//                for (int i = 0; i < multipart.getCount(); i++) {
-//                    BodyPart part = multipart.getBodyPart(i);
-//                    if (Part.ATTACHMENT.equalsIgnoreCase(part.getDisposition())) {
-//                        attachmentModel.addElement(part.getFileName());
-//                        if (!attachmentModel.contains(part)) {
-//                            saveAttachment(part);
-//                        }
-//                    }
-//                }
-//            }
-//        } catch (MessagingException | IOException ex) {
-//            ex.printStackTrace();
-//        }
-            Folder folder  = message.getFolder();
-            if (!folder.isOpen()) folder.open(Folder.READ_WRITE);
-            
+            Folder folder = message.getFolder();
+            if (!folder.isOpen()) {
+                folder.open(Folder.READ_WRITE);
+            }
+
             Multipart multipart = (Multipart) message.getContent();
-            List<String> attachments = new ArrayList<>();
 
             for (int i = 0; i < multipart.getCount(); i++) {
                 BodyPart bodyPart = multipart.getBodyPart(i);
                 if (Part.ATTACHMENT.equalsIgnoreCase(bodyPart.getDisposition())) {
+                    String fileName = bodyPart.getFileName();
+                    attachmentNames.add(fileName);
+                    attachmentArea.append(fileName + "\n");
                     saveAttachment(bodyPart);
-//                    attachments.add(bodyPart.getFileName());
                 }
             }
-        } catch (MessagingException ex) {
+        } catch (MessagingException | IOException ex) {
             Logger.getLogger(Reenvio.class.getName()).log(Level.SEVERE, null, ex);
-        } catch (IOException ex) {
-            ex.printStackTrace();
         }
     }
 
@@ -129,8 +115,6 @@ public class Reenvio extends JDialog {
                 fos.write(buf, 0, bytesRead);
             }
         }
-        attachmentModel.addElement(fileName);
-        System.out.println("Saved attachment to: " + file.getAbsolutePath());
     }
 
     private JPanel createLabeledField(String label, JTextField field) {
@@ -148,12 +132,11 @@ public class Reenvio extends JDialog {
             String additionalContent = contentArea.getText();
 
             if (!to.isEmpty() || !cc.isEmpty() || !bcc.isEmpty()) {
-                List<String> selectedAttachments = getSelectedAttachments();
-                String[] toRecipients = to.split("\\s*,\\s*");
-                String[] ccRecipients = cc.isEmpty() ? new String[0] : cc.split("\\s*,\\s*");
-                String[] bccRecipients = bcc.isEmpty() ? new String[0] : bcc.split("\\s*,\\s*");
+                String[] toRecipients = to.split("\\s+");
+                String[] ccRecipients = cc.isEmpty() ? new String[0] : cc.split("\\s+");
+                String[] bccRecipients = bcc.isEmpty() ? new String[0] : bcc.split("\\s+");
 
-                if (emailManager.reenviarMail(originalMessage, toRecipients, ccRecipients, bccRecipients, additionalContent, selectedAttachments)) {
+                if (emailManager.reenviarMail(originalMessage, toRecipients, ccRecipients, bccRecipients, additionalContent, attachmentNames)) {
                     JOptionPane.showMessageDialog(this, "Correo reenviado exitosamente.", "Éxito", JOptionPane.INFORMATION_MESSAGE);
                     dispose();
                     mc.cerrarDialog();
@@ -166,13 +149,5 @@ public class Reenvio extends JDialog {
         });
 
         cancelButton.addActionListener(e -> dispose());
-    }
-
-    private List<String> getSelectedAttachments() {
-        List<String> selected = new ArrayList<>();
-        for (int index : attachmentList.getSelectedIndices()) {
-            selected.add(attachmentModel.getElementAt(index));
-        }
-        return selected;
     }
 }
