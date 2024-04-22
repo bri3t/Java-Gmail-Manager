@@ -249,7 +249,6 @@ public class App extends JFrame {
             JOptionPane.showMessageDialog(this, "No hay carpetas seleccionadas.", "Update Error", JOptionPane.ERROR_MESSAGE);
         }
     }
-   
 
 //    public static void main(String[] args) {
 //        SwingUtilities.invokeLater(() -> new App("mail", "pass"));
