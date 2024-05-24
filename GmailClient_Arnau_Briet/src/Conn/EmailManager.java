@@ -206,7 +206,6 @@ public class EmailManager {
                     multipart.addBodyPart(attachmentPart);
                 } else {
                     System.err.println("File not found or not readable: " + filePath);
-                    continue; // Skip this attachment
                 }
             }
 
